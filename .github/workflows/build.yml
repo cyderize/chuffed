@@ -1,0 +1,48 @@
+on: push
+
+jobs:
+  build-test:
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        platform: [win64, osx, linux, musl]
+        include:
+          - platform: win64
+            os: windows-latest
+            cmake_arch: Visual Studio 16 2019
+          - platform: osx
+            os: macos-latest
+          - platform: linux
+            os: ubuntu-latest
+          - platform: musl
+            os: ubuntu-latest
+            container: dekker1/minibuild:cpp
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v1
+        if: matrix.platform == 'osx' || matrix.platform == 'linux'
+      - name: Configure build
+        run: |
+          mkdir build && cd build
+          cmake -G"${CMAKE_ARCH}" .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/dist/chuffed
+        shell: bash
+        env:
+          BUILD_PLATFORM: ${{ matrix.platform }}
+          CMAKE_ARCH: ${{ matrix.cmake_arch || 'Ninja' }}
+      - name: Build Chuffed
+        run: |
+          cmake --build . --config Release
+          cmake --build . --config Release --target install
+        working-directory: build
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 2
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: chuffed-${{ matrix.platform }}
+          path: dist/*
